@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ss-tool
+    environment:
+      POSTGRES_USER: ss_user
+      POSTGRES_PASSWORD: ss_password
+      POSTGRES_DB: ss_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d classifier"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: ss_backend
+    ports:
+      - "8002:8001"
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql+psycopg2://ss_user:ss_password@db:5432/ss_db
+      - FRONTEND_ORIGIN=http://localhost:3000        
+      - STORAGE_ROOT=/app/storage
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+      - backend_storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uv run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+
+  frontend:
+    build: ./frontend
+    container_name: ss_frontend
+    ports:
+      - "3000:3000"                                  
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next                                  
+    environment:
+      WATCHPACK_POLLING: "true"                     
+      NEXT_PUBLIC_BASE_URL: http://localhost:3000  
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  backend_storage:
