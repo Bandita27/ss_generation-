@@ -1,6 +1,6 @@
-from sqlalchemy.orm import DeclarativeBase
+from __future__ import annotations
 
 
-class Base(DeclarativeBase):
+class Base:
     """Modern declarative base. Required for Mapped[] typing to work."""
     pass

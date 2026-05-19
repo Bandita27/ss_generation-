@@ -1,8 +1,5 @@
-from uuid import UUID
-
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
 
 from app.controller.extraction import (
     build_job_zip,
@@ -12,8 +9,6 @@ from app.controller.extraction import (
     save_job_as_session,
     start_extraction_job,
 )
-from app.controller.upload_session import get_session
-from app.core.database import get_db
 from app.schemas.extraction import (
     ExtractionPreview,
     ExtractionStartResponse,
@@ -113,8 +108,8 @@ def download_job_zip(job_id: str):
 
 
 @router.post("/{job_id}/save", response_model=UploadSessionResponse)
-def save_job(job_id: str, db: Session = Depends(get_db)):
-    session = save_job_as_session(db, job_id)
+def save_job(job_id: str):
+    session = save_job_as_session(job_id)
     if session is None:
         raise HTTPException(
             400,

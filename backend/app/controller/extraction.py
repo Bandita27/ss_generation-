@@ -9,14 +9,12 @@ import zipfile
 from pathlib import Path
 from threading import Lock, Thread
 
+import json
 import pandas as pd
-from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.extraction import process_video
 from app.core.storage import ensure_session_dirs
-from app.models.image import Image as ImageModel
-from app.models.upload_session import UploadSession
 
 log = logging.getLogger(__name__)
 
@@ -203,7 +201,7 @@ def build_job_zip(job_id: str) -> tuple[io.BytesIO, str] | None:
 
 
 # ─── promote job → permanent session ──────────────────────────────
-def save_job_as_session(db: Session, job_id: str, label: str | None = None) -> UploadSession | None:
+def save_job_as_session(job_id: str, label: str | None = None) -> dict | None:
     job = _get(job_id)
     if job is None or job["status"] != "done":
         return None
@@ -219,30 +217,19 @@ def save_job_as_session(db: Session, job_id: str, label: str | None = None) -> U
     csv_stem = job.get("csv_stem") or "extracted"
     session_label = label or f"{csv_stem} — {len(results)} crops"
 
-    session = UploadSession(
-        label=session_label,
-        threshold=settings.DEFAULT_THRESHOLD,
-        source_csv_stem=csv_stem,
-    )
-    db.add(session)
-    db.flush()
-
-    session_id: uuid.UUID = session.id  # type: ignore[assignment]
-    ensure_session_dirs(session_id)
+    session_id = uuid.uuid4()
+    session_root = ensure_session_dirs(session_id)
 
     storage_root = Path(settings.STORAGE_ROOT)
-    session_root = storage_root / str(session_id)
 
     intermediate_src = jd / "intermediate.csv"
     intermediate_dst = session_root / "intermediate.csv"
+    intermediate_csv_path = None
     if intermediate_src.exists():
         shutil.copy2(intermediate_src, intermediate_dst)
-        session.intermediate_csv_path = str(intermediate_dst.relative_to(storage_root).as_posix())  # type: ignore[assignment]
+        intermediate_csv_path = str(intermediate_dst.relative_to(storage_root).as_posix())
 
     crops_src_dir = jd / "crops"
-    unmatched_dir = session_root / "unmatched"
-    unmatched_dir.mkdir(parents=True, exist_ok=True)
-
     for r in results:
         uid = int(r["uid"])
         src_image = crops_src_dir / r["image"]
@@ -252,23 +239,19 @@ def save_job_as_session(db: Session, job_id: str, label: str | None = None) -> U
 
         image_id = uuid.uuid4()
         dst_filename = f"{image_id}.webp"
-        dst_path = unmatched_dir / dst_filename
+        dst_path = session_root / "unmatched" / dst_filename
         shutil.copy2(src_image, dst_path)
 
-        rel_path = dst_path.relative_to(storage_root).as_posix()
-        db.add(ImageModel(
-            id=image_id,
-            session_id=session_id,
-            original_filename=f"{uid}.webp",
-            stored_path=rel_path,
-            matched=False,
-            confidence=float(r.get("confidence", 0.0)),
-            label_seen=str(r.get("class_name", "")),
-            uid=uid,
-        ))
+    metadata = {
+        "id": str(session_id),
+        "label": session_label,
+        "threshold": settings.DEFAULT_THRESHOLD,
+        "source_csv_stem": csv_stem,
+        "intermediate_csv_path": intermediate_csv_path,
+    }
 
-    db.commit()
-    db.refresh(session)
+    metadata_file = session_root / "session.json"
+    metadata_file.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
     try:
         shutil.rmtree(jd)
@@ -277,7 +260,7 @@ def save_job_as_session(db: Session, job_id: str, label: str | None = None) -> U
     with _LOCK:
         _JOBS.pop(job_id, None)
 
-    return session
+    return metadata
 
 
 # ─── header sniff ─────────────────────────────────────────────────

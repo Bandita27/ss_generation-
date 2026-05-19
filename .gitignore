@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+.env
+
+# Node
+node_modules/
+.next/
+out/
+build/
+dist/
+.env*
+*.tsbuildinfo
+next-env.d.ts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Storage / job output
+backend/storage/
