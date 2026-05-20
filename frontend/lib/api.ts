@@ -1,6 +1,6 @@
 import axios, { type AxiosProgressEvent } from 'axios'
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://ss_backend:8001'
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:8000'
 
 const api = axios.create({ baseURL: BASE_URL })
 

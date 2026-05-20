@@ -33,7 +33,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: uv run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+    command: uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build: ./frontend
@@ -46,7 +46,7 @@ services:
       - /app/.next
     environment:
       WATCHPACK_POLLING: "true"
-      NEXT_PUBLIC_BASE_URL: http://localhost:8001
+      NEXT_PUBLIC_BASE_URL: http://localhost:8000
     depends_on:
       - backend
 
